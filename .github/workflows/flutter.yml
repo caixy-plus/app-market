@@ -1,0 +1,245 @@
+name: Flutter CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+
+env:
+  flutter-version: '3.19.0'
+  java-version: '17'
+
+jobs:
+  # ===========================================
+  # Android 构建
+  # ===========================================
+  android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.java-version }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.flutter-version }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apks
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+  # ===========================================
+  # macOS 构建
+  # ===========================================
+  macos:
+    name: Build macOS
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.flutter-version }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Get macOS dependencies
+        run: |
+          cd macos && pod install && cd ..
+
+      - name: Build macOS
+        run: flutter build macos
+
+      - name: Install create-dmg
+        run: |
+          if ! command -v create-dmg &> /dev/null; then
+            brew install create-dmg
+          fi
+
+      - name: Prepare and Create DMG
+        run: |
+          APP_PATH="build/macos/Build/Products/Release/app_market.app"
+          DMG_PATH="app-market.dmg"
+
+          # 移除所有扩展属性
+          xattr -cr "$APP_PATH"
+
+          # 确保二进制文件有执行权限
+          chmod +x "$APP_PATH/Contents/MacOS/app_market"
+
+          # 创建 DMG
+          create-dmg \
+            --volname "App Market" \
+            --window-pos 200 200 \
+            --window-size 600 400 \
+            --icon-size 80 \
+            --icon "app_market.app" 150 200 \
+            --app-drop-link 450 200 \
+            --hide-extension "app_market.app" \
+            --format UDZO \
+            "$DMG_PATH" \
+            "$APP_PATH"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: |
+            app-market.dmg
+          retention-days: 7
+
+  # ===========================================
+  # Windows 构建
+  # ===========================================
+  windows:
+    name: Build Windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.flutter-version }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Zip Windows build
+        shell: pwsh
+        run: |
+          $relPath = "build\windows\x64\runner\Release"
+          if (!(Test-Path $relPath)) { $relPath = "build\windows\runner\Release" }
+          Compress-Archive -Path "$relPath\*" -DestinationPath "app-market-windows.zip" -Force
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            app-market-windows.zip
+          retention-days: 7
+
+  # ===========================================
+  # Web 构建
+  # ===========================================
+  web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.flutter-version }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Web (no CDN)
+        run: flutter build web --release --no-web-resources-cdn
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+          retention-days: 7
+
+  # ===========================================
+  # 部署到 GitHub Release
+  # ===========================================
+  deploy:
+    name: Deploy to GitHub Release
+    runs-on: ubuntu-latest
+    needs: [android, macos, windows, web]
+    if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release_dist
+
+          # 1. Android - 搜索 apk 并复制
+          find artifacts -name "app-release.apk" -exec cp {} release_dist/app-market-android.apk \;
+
+          # 2. Windows - 搜索 zip
+          find artifacts -name "app-market-windows.zip" -exec cp {} release_dist/app-market-windows.zip \;
+
+          # 3. macOS - 搜索 DMG
+          find artifacts -name "app-market.dmg" -exec cp {} release_dist/app-market-macos.dmg \;
+
+          # 4. Web - 打包为 zip
+          if [ -d "artifacts/web-build" ]; then
+            cd artifacts/web-build && zip -r ../../release_dist/app-market-web.zip . && cd ../..
+          fi
+
+          ls -R release_dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref == 'refs/heads/main' && 'latest-dev' || github.ref_name }}
+          name: App Market Release ${{ github.ref == 'refs/heads/main' && 'latest-dev' || github.ref_name }}
+          draft: false
+          prerelease: ${{ github.ref == 'refs/heads/main' }}
+          generate_release_notes: true
+          files: release_dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
