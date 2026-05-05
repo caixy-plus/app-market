@@ -150,19 +150,36 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release
 
-      - name: Zip Windows build
+      - name: Build MSI
         shell: pwsh
         run: |
+          # Install WiX v5
+          dotnet tool install --global wix --version 5.0.0
+          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
+
+          # Locate Release path
           $relPath = "build\windows\x64\runner\Release"
           if (!(Test-Path $relPath)) { $relPath = "build\windows\runner\Release" }
-          Compress-Archive -Path "$relPath\*" -DestinationPath "app-market-windows.zip" -Force
+          $fullPath = (Resolve-Path $relPath).Path
+
+          # Copy icon to SourceDir so WiX can find it
+          Copy-Item "windows\runner\resources\app_icon.ico" -Destination "$fullPath" -Force
+
+          # Generate Package.wxs dynamically
+          python windows/generate_package.py --release-dir "$fullPath" --output windows/Package.wxs
+
+          # Build MSI
+          & wix build windows/Package.wxs `
+            -d SourceDir="$fullPath" `
+            -arch x64 `
+            -o app-market.msi
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
           path: |
-            app-market-windows.zip
+            app-market.msi
           retention-days: 7
 
   # ===========================================
@@ -219,8 +236,8 @@ jobs:
           # 1. Android - 搜索 apk 并复制
           find artifacts -name "app-release.apk" -exec cp {} release_dist/app-market-android.apk \;
 
-          # 2. Windows - 搜索 zip
-          find artifacts -name "app-market-windows.zip" -exec cp {} release_dist/app-market-windows.zip \;
+          # 2. Windows - 搜索 MSI
+          find artifacts -name "app-market.msi" -exec cp {} release_dist/app-market-windows.msi \;
 
           # 3. macOS - 搜索 DMG
           find artifacts -name "app-market.dmg" -exec cp {} release_dist/app-market-macos.dmg \;
