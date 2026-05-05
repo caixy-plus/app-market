@@ -1,0 +1,57 @@
+name: app_market
+description: "应用商城 - 发现优质应用"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # HTTP & API
+  dio: ^5.4.0
+
+  # State Management
+  provider: ^6.1.1
+
+  # Local Storage
+  shared_preferences: ^2.2.2
+
+  # Device Info
+  device_info_plus: ^9.1.1
+
+  # File Handling
+  path_provider: ^2.1.2
+  permission_handler: ^11.3.0
+  open_filex: ^4.4.0
+
+  # UI Components
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+
+  # Utils
+  intl: ^0.19.0
+  url_launcher: ^6.2.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # Mocking
+  mocktail: ^1.0.4
+
+  # HTTP testing
+  http_mock_adapter: ^0.6.1
+
+  # Integration / E2E testing
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
