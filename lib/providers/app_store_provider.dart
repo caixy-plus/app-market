@@ -28,13 +28,7 @@ class AppStoreProvider with ChangeNotifier {
   String get currentCategory => _currentCategory;
   String get currentSortBy => _currentSortBy;
   String get currentSearch => _currentSearch;
-  bool get isMockMode => _api.useMock;
   Set<int> get installedAppIds => _installedAppIds;
-
-  void setMockMode(bool value) {
-    _api.setMockMode(value);
-    notifyListeners();
-  }
 
   Future<void> loadPopularApps() async {
     try {
