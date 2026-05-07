@@ -1,23 +1,19 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../models/app_store_app.dart';
 import 'mock_data.dart';
 
 class ApiClient {
+  static bool forceMock = false;
   late final Dio _dio;
-  bool _useMock = false;
   VoidCallback? onUnauthorized;
 
   ApiClient() {
-    String baseUrl = AppConfig.baseUrl;
-    if (Platform.isAndroid) {
-      baseUrl = 'http://192.168.124.22:8080';
-    } else if (Platform.isWindows || Platform.isMacOS) {
-      baseUrl = 'http://localhost:8080';
-    }
+    final baseUrl = AppConfig.baseUrl;
 
     _dio = Dio(BaseOptions(
       baseUrl: '$baseUrl/api',
@@ -25,6 +21,17 @@ class ApiClient {
       receiveTimeout: const Duration(seconds: 15),
       headers: {'Content-Type': 'application/json'},
     ));
+
+    // 本地 K8s 自签名证书忽略
+    if (baseUrl.contains('local.caixy.xin')) {
+      _dio.httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: () {
+          final client = HttpClient();
+          client.badCertificateCallback = (cert, host, port) => true;
+          return client;
+        },
+      );
+    }
 
     _dio.interceptors.add(QueuedInterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -65,12 +72,6 @@ class ApiClient {
         return handler.next(error);
       },
     ));
-  }
-
-  bool get useMock => _useMock;
-
-  void setMockMode(bool value) {
-    _useMock = value;
   }
 
   Future<String?> _getToken() async {
@@ -120,26 +121,6 @@ class ApiClient {
     } catch (_) {}
   }
 
-  Future<T> _request<T>(
-    Future<T> Function() apiCall,
-    T Function() mockFallback, {
-    bool allowMock = false,
-  }) async {
-    if (_useMock && allowMock) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      return mockFallback();
-    }
-    try {
-      return await apiCall();
-    } catch (e) {
-      if (allowMock) {
-        _useMock = true;
-        return mockFallback();
-      }
-      rethrow;
-    }
-  }
-
   T _parseResponse<T>(Response response, T Function(dynamic data) parser) {
     final body = response.data;
     if (body is Map<String, dynamic> && body.containsKey('code')) {
@@ -158,139 +139,132 @@ class ApiClient {
 
   // ========== 应用商店 API ==========
 
+  String _currentPlatform() {
+    if (Platform.isAndroid) return 'android';
+    if (Platform.isWindows) return 'windows';
+    if (Platform.isMacOS) return 'macos';
+    return '';
+  }
+
   Future<List<AppStoreApp>> browseApps({
     String? category,
     String? search,
     String sortBy = 'popular',
     int page = 1,
     int size = 20,
+    String? platform,
   }) async {
-    return _request(
-      () async {
-        final response = await _dio.get('/v1/store/apps', queryParameters: {
-          if (category != null && category != 'all') 'category': category,
-          if (search != null && search.isNotEmpty) 'search': search,
-          'sortBy': sortBy,
-          'page': page,
-          'size': size,
-        });
-        final data = _parseResponse(response, (d) => d);
-        // PageResponse 格式: { records: [...], total, pageNum, pageSize }
-        if (data is Map && data['records'] is List) {
-          return (data['records'] as List)
-              .map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>))
-              .toList();
-        }
-        // 兼容旧的数组格式
-        if (data is List) {
-          return data.map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>)).toList();
-        }
-        return <AppStoreApp>[];
-      },
-      () => MockData.browseApps(
+    if (forceMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      return MockData.browseApps(
         category: category,
         search: search,
         sortBy: sortBy,
         page: page,
         size: size,
-      ),
-    );
+      );
+    }
+    final p = platform ?? _currentPlatform();
+    final response = await _dio.get('/v1/store/apps', queryParameters: {
+      if (category != null && category != 'all') 'category': category,
+      if (search != null && search.isNotEmpty) 'search': search,
+      'sortBy': sortBy,
+      'page': page,
+      'size': size,
+      if (p.isNotEmpty) 'platform': p,
+    });
+    final data = _parseResponse(response, (d) => d);
+    // PageResponse 格式: { records: [...], total, pageNum, pageSize }
+    if (data is Map && data['records'] is List) {
+      return (data['records'] as List)
+          .map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    // 兼容旧的数组格式
+    if (data is List) {
+      return data.map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    return <AppStoreApp>[];
   }
 
   Future<AppStoreApp> getAppDetail(String slug) async {
-    return _request(
-      () async {
-        final response = await _dio.get('/v1/store/apps/$slug');
-        final data = _parseResponse(response, (d) => d);
-        return AppStoreApp.fromJson(data as Map<String, dynamic>);
-      },
-      () {
-        final app = MockData.getAppDetail(slug);
-        if (app == null) throw ApiException(404, '应用不存在');
-        return app;
-      },
-    );
+    if (forceMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      final app = MockData.getAppDetail(slug);
+      if (app == null) throw ApiException(404, '应用不存在');
+      return app;
+    }
+    final response = await _dio.get('/v1/store/apps/$slug');
+    final data = _parseResponse(response, (d) => d);
+    return AppStoreApp.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<List<AppStoreApp>> getPopularApps({int limit = 10}) async {
-    return _request(
-      () async {
-        final response = await _dio.get('/v1/store/apps', queryParameters: {
-          'sortBy': 'popular',
-          'page': 1,
-          'size': limit,
-        });
-        final data = _parseResponse(response, (d) => d);
-        if (data is Map && data['records'] is List) {
-          return (data['records'] as List)
-              .map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>))
-              .toList();
-        }
-        if (data is List) {
-          return data.map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>)).toList();
-        }
-        return <AppStoreApp>[];
-      },
-      () => MockData.getPopularApps(limit: limit),
-    );
+  Future<List<AppStoreApp>> getPopularApps({int limit = 10, String? platform}) async {
+    if (forceMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      return MockData.getPopularApps(limit: limit);
+    }
+    final p = platform ?? _currentPlatform();
+    final response = await _dio.get('/v1/store/apps', queryParameters: {
+      'sortBy': 'popular',
+      'page': 1,
+      'size': limit,
+      if (p.isNotEmpty) 'platform': p,
+    });
+    final data = _parseResponse(response, (d) => d);
+    if (data is Map && data['records'] is List) {
+      return (data['records'] as List)
+          .map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    if (data is List) {
+      return data.map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    return <AppStoreApp>[];
   }
 
-  Future<List<AppStoreApp>> getLatestApps({int limit = 10}) async {
-    return _request(
-      () async {
-        final response = await _dio.get('/v1/store/apps', queryParameters: {
-          'sortBy': 'newest',
-          'page': 1,
-          'size': limit,
-        });
-        final data = _parseResponse(response, (d) => d);
-        if (data is Map && data['records'] is List) {
-          return (data['records'] as List)
-              .map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>))
-              .toList();
-        }
-        if (data is List) {
-          return data.map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>)).toList();
-        }
-        return <AppStoreApp>[];
-      },
-      () => MockData.getLatestApps(limit: limit),
-    );
+  Future<List<AppStoreApp>> getLatestApps({int limit = 10, String? platform}) async {
+    if (forceMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      return MockData.getLatestApps(limit: limit);
+    }
+    final p = platform ?? _currentPlatform();
+    final response = await _dio.get('/v1/store/apps', queryParameters: {
+      'sortBy': 'newest',
+      'page': 1,
+      'size': limit,
+      if (p.isNotEmpty) 'platform': p,
+    });
+    final data = _parseResponse(response, (d) => d);
+    if (data is Map && data['records'] is List) {
+      return (data['records'] as List)
+          .map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    if (data is List) {
+      return data.map((e) => AppStoreApp.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    return <AppStoreApp>[];
   }
 
   Future<void> installApp(int appId, {int? uid, int? projectId}) async {
-    return _request(
-      () async {
-        await _dio.post('/v1/store/apps/$appId/install', queryParameters: {
-          if (uid != null) 'uid': uid,
-          if (projectId != null) 'projectId': projectId,
-        });
-      },
-      () {},
-    );
+    await _dio.post('/v1/store/apps/$appId/install', queryParameters: {
+      if (uid != null) 'uid': uid,
+      if (projectId != null) 'projectId': projectId,
+    });
   }
 
   Future<void> uninstallApp(int appId, {int? uid}) async {
-    return _request(
-      () async {
-        await _dio.delete('/v1/store/apps/$appId/install', queryParameters: {
-          if (uid != null) 'uid': uid,
-        });
-      },
-      () {},
-    );
+    await _dio.delete('/v1/store/apps/$appId/install', queryParameters: {
+      if (uid != null) 'uid': uid,
+    });
   }
 
   Future<void> rateApp(int appId, {int? uid, required int rating, String? comment}) async {
-    return _request(
-      () async {
-        await _dio.post('/v1/store/apps/$appId/rate', data: {
-          'rating': rating,
-          if (comment != null) 'comment': comment,
-        });
-      },
-      () {},
-    );
+    await _dio.post('/v1/store/apps/$appId/rate', data: {
+      'rating': rating,
+      if (comment != null) 'comment': comment,
+    });
   }
 
   // ========== 用户授权 API ==========
