@@ -8,7 +8,7 @@ void main() {
 
     setUp(() {
       client = ApiClient();
-      client.setMockMode(false);
+      ApiClient.forceMock = false;
     });
 
     test('browseApps returns real data', () async {
