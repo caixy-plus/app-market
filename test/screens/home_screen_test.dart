@@ -11,7 +11,7 @@ Widget createTestApp() {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider(
-        create: (_) => AppStoreProvider()..setMockMode(false),
+        create: (_) => AppStoreProvider(),
       ),
       ChangeNotifierProvider(create: (_) => AuthProvider()),
     ],
