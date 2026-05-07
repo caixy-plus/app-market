@@ -7,7 +7,6 @@ void main() {
 
     setUp(() {
       provider = AppStoreProvider();
-      provider.setMockMode(false);
     });
 
     test('initial state is correct', () {
