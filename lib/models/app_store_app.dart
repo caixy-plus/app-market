@@ -21,6 +21,8 @@ class AppStoreApp {
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final List<String>? supportedPlatforms;
+  final String? githubRepoUrl;
+  final String? officialUrl;
 
   AppStoreApp({
     required this.id,
@@ -45,6 +47,8 @@ class AppStoreApp {
     this.createdAt,
     this.updatedAt,
     this.supportedPlatforms,
+    this.githubRepoUrl,
+    this.officialUrl,
   });
 
   factory AppStoreApp.fromJson(Map<String, dynamic> json) {
@@ -133,6 +137,8 @@ class AppStoreApp {
       supportedPlatforms: json['supportedPlatforms'] != null
           ? (json['supportedPlatforms'] as List).cast<String>()
           : null,
+      githubRepoUrl: s('github_repo', 'githubRepo'),
+      officialUrl: s('official_url', 'officialUrl'),
     );
   }
 
