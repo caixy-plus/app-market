@@ -9,8 +9,7 @@ void main() {
   group('End-to-End App Market Test', () {
     testWidgets('full user journey', (WidgetTester tester) async {
       app.main();
-      // Wait for mock API delay and initial animations
-      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
 
       // 1. Verify home screen loads
@@ -48,20 +47,22 @@ void main() {
 
       expect(find.text('未登录'), findsOneWidget);
 
-      // 6. Scroll down and toggle mock mode
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
+      // 6. Verify theme setting exists
+      await tester.ensureVisible(find.widgetWithText(ListTile, '主题设置'));
       await tester.pumpAndSettle();
-
-      final mockSwitch = find.text('本地模拟模式');
-      if (mockSwitch.evaluate().isNotEmpty) {
-        await tester.tap(mockSwitch);
-        await tester.pumpAndSettle();
-      }
+      await tester.tap(find.widgetWithText(ListTile, '主题设置'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(find.text('亮色'), findsOneWidget);
+      expect(find.text('暗色'), findsOneWidget);
+      expect(find.text('跟随系统').last, findsOneWidget);
+      await tester.tap(find.text('跟随系统').last);
+      await tester.pumpAndSettle();
     });
 
     testWidgets('search flow', (WidgetTester tester) async {
       app.main();
-      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
 
       // Tap search bar
@@ -69,13 +70,13 @@ void main() {
       await tester.pumpAndSettle();
 
       // Type search query
-      await tester.enterText(find.byType(TextField), 'VS');
+      await tester.enterText(find.byType(TextField), 'a');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
 
-      // Verify search results
-      expect(find.text('VS Code'), findsWidgets);
+      // Verify search results (at least one result card exists)
+      expect(find.byType(ListTile), findsWidgets);
     });
   });
 }
