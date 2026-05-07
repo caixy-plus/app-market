@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_store_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/theme_provider.dart';
 import 'installed_apps_screen.dart';
 import 'login_screen.dart';
 
@@ -86,10 +88,10 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: _StatCard(
-              label: 'Mock 模式',
-              value: provider.isMockMode ? '开启' : '关闭',
-              icon: provider.isMockMode ? Icons.cloud_off : Icons.cloud,
-              color: provider.isMockMode ? Colors.orange : Colors.blue,
+              label: '应用数',
+              value: '${provider.apps.length}',
+              icon: Icons.apps,
+              color: Colors.blue,
             ),
           ),
         ],
@@ -98,19 +100,20 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildMenu(BuildContext context) {
-    final items = [
-      (
-        '已安装应用',
-        Icons.download_done_outlined,
-        Colors.green,
-        () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const InstalledAppsScreen()),
-          );
-        }
-      ),
-      (
+    final items = <_MenuItem>[
+      if (Platform.isAndroid)
+        _MenuItem(
+          '应用管理',
+          Icons.apps_outlined,
+          Colors.green,
+          () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const InstalledAppsScreen()),
+            );
+          },
+        ),
+      _MenuItem(
         '我的评分',
         Icons.star_outline,
         Colors.orange,
@@ -118,9 +121,9 @@ class ProfileScreen extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('功能开发中')),
           );
-        }
+        },
       ),
-      (
+      _MenuItem(
         '意见反馈',
         Icons.feedback_outlined,
         Colors.purple,
@@ -128,7 +131,7 @@ class ProfileScreen extends StatelessWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('功能开发中')),
           );
-        }
+        },
       ),
     ];
 
@@ -150,10 +153,10 @@ class ProfileScreen extends StatelessWidget {
               children: items.asMap().entries.map((entry) {
                 final item = entry.value;
                 return ListTile(
-                  leading: Icon(item.$2, color: item.$3),
-                  title: Text(item.$1),
+                  leading: Icon(item.icon, color: item.color),
+                  title: Text(item.title),
                   trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                  onTap: item.$4,
+                  onTap: item.onTap,
                 );
               }).toList(),
             ),
@@ -164,7 +167,20 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildSettings(BuildContext context) {
-    final provider = context.watch<AppStoreProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
+
+    String themeLabel;
+    switch (themeProvider.mode) {
+      case AppThemeMode.light:
+        themeLabel = '亮色';
+        break;
+      case AppThemeMode.dark:
+        themeLabel = '暗色';
+        break;
+      case AppThemeMode.auto:
+        themeLabel = '跟随系统';
+        break;
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -182,12 +198,23 @@ class ProfileScreen extends StatelessWidget {
           Card(
             child: Column(
               children: [
-                SwitchListTile(
-                  secondary: const Icon(Icons.cloud_off, color: Colors.orange),
-                  title: const Text('本地模拟模式'),
-                  subtitle: const Text('服务端不可用时自动开启'),
-                  value: provider.isMockMode,
-                  onChanged: (value) => provider.setMockMode(value),
+                ListTile(
+                  leading: const Icon(Icons.color_lens_outlined, color: Colors.blue),
+                  title: const Text('主题设置'),
+                  subtitle: Text(themeLabel),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                  onTap: () => _showThemePicker(context),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.system_update_outlined, color: Colors.teal),
+                  title: const Text('检查更新'),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('已是最新版本')),
+                    );
+                  },
                 ),
                 const Divider(height: 1),
                 ListTile(
@@ -212,7 +239,62 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-
+  void _showThemePicker(BuildContext context) {
+    final themeProvider = context.read<ThemeProvider>();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  '主题设置',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.light_mode),
+                title: const Text('亮色'),
+                trailing: themeProvider.mode == AppThemeMode.light
+                    ? const Icon(Icons.check, color: Colors.blue)
+                    : null,
+                onTap: () {
+                  themeProvider.setMode(AppThemeMode.light);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.dark_mode),
+                title: const Text('暗色'),
+                trailing: themeProvider.mode == AppThemeMode.dark
+                    ? const Icon(Icons.check, color: Colors.blue)
+                    : null,
+                onTap: () {
+                  themeProvider.setMode(AppThemeMode.dark);
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.brightness_auto),
+                title: const Text('跟随系统'),
+                trailing: themeProvider.mode == AppThemeMode.auto
+                    ? const Icon(Icons.check, color: Colors.blue)
+                    : null,
+                onTap: () {
+                  themeProvider.setMode(AppThemeMode.auto);
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _StatCard extends StatelessWidget {
@@ -257,4 +339,13 @@ class _StatCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MenuItem {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  _MenuItem(this.title, this.icon, this.color, this.onTap);
 }
