@@ -12,7 +12,6 @@ class InstalledAppsScreen extends StatelessWidget {
     final provider = context.watch<AppStoreProvider>();
     final installedIds = provider.installedAppIds;
 
-    // 从所有已加载的应用中查找已安装应用
     final allApps = <AppStoreApp>[
       ...provider.popularApps,
       ...provider.latestApps,
@@ -27,15 +26,15 @@ class InstalledAppsScreen extends StatelessWidget {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('已安装应用')),
+      appBar: AppBar(title: const Text('应用管理')),
       body: result.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.download_done, size: 64, color: Colors.grey[300]),
+                  Icon(Icons.apps_outlined, size: 64, color: Colors.grey[300]),
                   const SizedBox(height: 16),
-                  Text('暂无已安装应用', style: TextStyle(color: Colors.grey[500])),
+                  Text('暂无安装应用', style: TextStyle(color: Colors.grey[500])),
                 ],
               ),
             )
