@@ -72,7 +72,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Future<void> _handleOpen(AppStoreApp app) async {
-    final url = app.manifestUrl;
+    final url = app.officialUrl ?? app.manifestUrl;
     if (url == null || url.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('暂无下载链接')),
@@ -80,6 +80,50 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       return;
     }
     final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('无法打开链接')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleGithub(AppStoreApp app) async {
+    final repoUrl = app.githubRepoUrl;
+    if (repoUrl == null || repoUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('暂无 GitHub 源码链接')),
+      );
+      return;
+    }
+    final uri = Uri.parse(repoUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('无法打开链接')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleCheckUpdate(AppStoreApp app) async {
+    final repoUrl = app.githubRepoUrl;
+    if (repoUrl == null || repoUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('暂无 GitHub 源码链接')),
+      );
+      return;
+    }
+    // 跳转到 GitHub releases 页面
+    final releasesUrl = repoUrl.endsWith('/')
+        ? '${repoUrl}releases'
+        : '$repoUrl/releases';
+    final uri = Uri.parse(releasesUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
@@ -342,57 +386,98 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final provider = context.watch<AppStoreProvider>();
     final isInstalled = provider.installedAppIds.contains(app.id);
     final supported = _isSupported(app);
+    final hasGithub = app.githubRepoUrl != null && app.githubRepoUrl!.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: supported && !_installing ? () => _handleInstall(app) : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isInstalled ? Colors.grey[200] : Colors.blue,
-                foregroundColor: isInstalled ? Colors.black87 : Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: supported && !_installing ? () => _handleInstall(app) : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isInstalled ? Colors.grey[200] : Colors.blue,
+                    foregroundColor: isInstalled ? Colors.black87 : Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: _installing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        )
+                      : Icon(isInstalled ? Icons.delete_outline : Icons.download),
+                  label: Text(
+                    !supported
+                        ? '不支持当前平台'
+                        : isInstalled
+                            ? '卸载'
+                            : '安装',
+                    style: const TextStyle(fontSize: 15),
+                  ),
                 ),
               ),
-              icon: _installing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation(Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _handleOpen(app),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: const BorderSide(color: Colors.blue),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('访问官网', style: TextStyle(fontSize: 15)),
+                ),
+              ),
+            ],
+          ),
+          if (hasGithub) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _handleGithub(app),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: const BorderSide(color: Colors.grey),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    )
-                  : Icon(isInstalled ? Icons.delete_outline : Icons.download),
-              label: Text(
-                !supported
-                    ? '不支持当前平台'
-                    : isInstalled
-                        ? '卸载'
-                        : '安装',
-                style: const TextStyle(fontSize: 15),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () => _handleOpen(app),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                side: const BorderSide(color: Colors.blue),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                    ),
+                    icon: const Icon(Icons.code, size: 18),
+                    label: const Text('GitHub 源码', style: TextStyle(fontSize: 15)),
+                  ),
                 ),
-              ),
-              icon: const Icon(Icons.open_in_new),
-              label: const Text('访问官网', style: TextStyle(fontSize: 15)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _handleCheckUpdate(app),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: const BorderSide(color: Colors.teal),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    icon: const Icon(Icons.update, size: 18, color: Colors.teal),
+                    label: const Text('检查更新', style: TextStyle(fontSize: 15, color: Colors.teal)),
+                  ),
+                ),
+              ],
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -404,6 +489,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       if (app.pricingType != null) ('定价', _pricingLabel(app.pricingType!)),
       if (app.status != null) ('状态', _statusLabel(app.status!)),
       if (app.createdAt != null) ('上架', _formatDate(app.createdAt!)),
+      if (app.githubRepoUrl != null && app.githubRepoUrl!.isNotEmpty)
+        ('GitHub', app.githubRepoUrl!),
     ];
 
     if (items.isEmpty) return const SizedBox.shrink();
@@ -422,28 +509,41 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
             spacing: 12,
             runSpacing: 12,
             children: items.map((item) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.$1,
-                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.$2,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+              final isUrl = item.$1 == 'GitHub';
+              return InkWell(
+                onTap: isUrl
+                    ? () async {
+                        final uri = Uri.parse(item.$2);
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        }
+                      }
+                    : null,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.$1,
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        isUrl ? '查看仓库' : item.$2,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isUrl ? Colors.blue : null,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }).toList(),
