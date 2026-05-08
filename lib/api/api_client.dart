@@ -267,6 +267,27 @@ class ApiClient {
     });
   }
 
+  Future<List<AppRating>> getAppRatings(int appId, {int page = 1, int size = 20}) async {
+    if (forceMock) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      return MockData.getAppRatings(appId);
+    }
+    final response = await _dio.get('/v1/store/apps/$appId/ratings', queryParameters: {
+      'page': page,
+      'size': size,
+    });
+    final data = _parseResponse(response, (d) => d);
+    if (data is Map && data['records'] is List) {
+      return (data['records'] as List)
+          .map((e) => AppRating.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    if (data is List) {
+      return data.map((e) => AppRating.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    return <AppRating>[];
+  }
+
   // ========== 用户授权 API ==========
 
   Future<Map<String, dynamic>> login(String email, String password) async {

@@ -9,6 +9,7 @@ class AppStoreProvider with ChangeNotifier {
   List<AppStoreApp> _latestApps = [];
   List<AppStoreApp> _apps = [];
   AppStoreApp? _selectedApp;
+  List<AppRating> _selectedAppRatings = [];
   bool _loading = false;
   String? _error;
   int _currentPage = 1;
@@ -22,6 +23,7 @@ class AppStoreProvider with ChangeNotifier {
   List<AppStoreApp> get latestApps => _latestApps;
   List<AppStoreApp> get apps => _apps;
   AppStoreApp? get selectedApp => _selectedApp;
+  List<AppRating> get selectedAppRatings => _selectedAppRatings;
   bool get loading => _loading;
   String? get error => _error;
   bool get hasMore => _hasMore;
@@ -109,6 +111,9 @@ class AppStoreProvider with ChangeNotifier {
 
     try {
       _selectedApp = await _api.getAppDetail(slug);
+      if (_selectedApp != null) {
+        _selectedAppRatings = await _api.getAppRatings(_selectedApp!.id);
+      }
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -172,6 +177,8 @@ class AppStoreProvider with ChangeNotifier {
           createdAt: _selectedApp!.createdAt,
           updatedAt: _selectedApp!.updatedAt,
         );
+        // Refresh ratings list after submitting
+        _selectedAppRatings = await _api.getAppRatings(appId);
       }
       notifyListeners();
     } catch (e) {

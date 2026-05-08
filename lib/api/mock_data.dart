@@ -112,4 +112,23 @@ class MockData {
       ..sort((a, b) => b.id.compareTo(a.id));
     return sorted.take(limit).toList();
   }
+
+  static List<AppRating> getAppRatings(int appId) {
+    return [
+      AppRating(
+        id: 1,
+        rating: 5,
+        comment: '非常好用，推荐！',
+        createdAt: DateTime(2024, 3, 15),
+        userName: 'user1@example.com',
+      ),
+      AppRating(
+        id: 2,
+        rating: 4,
+        comment: '功能强大，但界面可以再优化。',
+        createdAt: DateTime(2024, 3, 10),
+        userName: 'user2@example.com',
+      ),
+    ];
+  }
 }

@@ -172,3 +172,38 @@ class AppCategory {
 
   AppCategory({required this.key, required this.name, this.icon});
 }
+
+class AppRating {
+  final int id;
+  final int rating;
+  final String? comment;
+  final DateTime? createdAt;
+  final String userName;
+  final String? userAvatar;
+
+  AppRating({
+    required this.id,
+    required this.rating,
+    this.comment,
+    this.createdAt,
+    required this.userName,
+    this.userAvatar,
+  });
+
+  factory AppRating.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic v) {
+      if (v == null) return null;
+      if (v is String) return DateTime.tryParse(v);
+      return null;
+    }
+
+    return AppRating(
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id'].toString()) ?? 0,
+      rating: json['rating'] is int ? json['rating'] : int.tryParse(json['rating'].toString()) ?? 0,
+      comment: json['comment']?.toString(),
+      createdAt: parseDate(json['created_at'] ?? json['createdAt']),
+      userName: json['user_name']?.toString() ?? json['userName']?.toString() ?? '匿名用户',
+      userAvatar: json['user_avatar']?.toString() ?? json['userAvatar']?.toString(),
+    );
+  }
+}

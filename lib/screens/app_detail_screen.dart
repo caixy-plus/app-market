@@ -144,36 +144,50 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
       return;
     }
 
+    String comment = '';
+    double localRating = 5;
+
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('为应用评分'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('点击星星评分'),
-              const SizedBox(height: 16),
-              StatefulBuilder(
-                builder: (context, setState) {
-                  return Row(
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('点击星星评分'),
+                  const SizedBox(height: 12),
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(5, (index) {
                       return IconButton(
                         icon: Icon(
-                          index < _userRating ? Icons.star : Icons.star_border,
+                          index < localRating ? Icons.star : Icons.star_border,
                           color: Colors.orange,
                           size: 32,
                         ),
                         onPressed: () {
-                          setState(() => _userRating = index + 1);
+                          setState(() => localRating = index + 1);
                         },
                       );
                     }),
-                  );
-                },
-              ),
-            ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: '写下你的评论（可选）',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.all(12),
+                    ),
+                    onChanged: (v) => comment = v,
+                  ),
+                ],
+              );
+            },
           ),
           actions: [
             TextButton(
@@ -187,7 +201,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                 try {
                   await context.read<AppStoreProvider>().rateApp(
                     app.id,
-                    _userRating.toInt(),
+                    localRating.toInt(),
+                    comment: comment.isNotEmpty ? comment : null,
                   );
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -581,6 +596,9 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Widget _buildRatingSection(AppStoreApp app) {
+    final provider = context.watch<AppStoreProvider>();
+    final ratings = provider.selectedAppRatings;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Column(
@@ -645,6 +663,81 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               '暂无评分',
               style: TextStyle(color: Colors.grey[500]),
             ),
+          const SizedBox(height: 16),
+          // Ratings list
+          if (ratings.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              alignment: Alignment.center,
+              child: Text(
+                '暂无评论，快来抢沙发吧',
+                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+              ),
+            )
+          else
+            ...ratings.map((r) => _buildRatingItem(r)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatingItem(AppRating rating) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: Colors.grey[300],
+                backgroundImage: rating.userAvatar != null && rating.userAvatar!.isNotEmpty
+                    ? NetworkImage(rating.userAvatar!)
+                    : null,
+                child: rating.userAvatar == null || rating.userAvatar!.isEmpty
+                    ? Text(
+                        rating.userName.isNotEmpty ? rating.userName[0].toUpperCase() : '?',
+                        style: const TextStyle(fontSize: 12, color: Colors.white),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                rating.userName,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 8),
+              Row(
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < rating.rating ? Icons.star : Icons.star_border,
+                    color: Colors.orange,
+                    size: 14,
+                  );
+                }),
+              ),
+              const Spacer(),
+              if (rating.createdAt != null)
+                Text(
+                  '${rating.createdAt!.year}-${rating.createdAt!.month.toString().padLeft(2, '0')}-${rating.createdAt!.day.toString().padLeft(2, '0')}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                ),
+            ],
+          ),
+          if (rating.comment != null && rating.comment!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              rating.comment!,
+              style: TextStyle(fontSize: 13, color: Colors.grey[800], height: 1.4),
+            ),
+          ],
         ],
       ),
     );
