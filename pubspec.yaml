@@ -1,5 +1,5 @@
 name: app_market
-description: "应用商城 - 发现优质应用"
+description: "AppHub - 发现优质应用"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -52,6 +52,20 @@ dev_dependencies:
   # Integration / E2E testing
   integration_test:
     sdk: flutter
+
+  # App Icon & Name
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#2D5BE3"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true

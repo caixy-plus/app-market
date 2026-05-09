@@ -57,12 +57,26 @@ class MockData {
 
   static final List<AppCategory> categories = [
     AppCategory(key: 'all', name: '全部', icon: 'apps'),
-    AppCategory(key: '开发工具', name: '开发工具', icon: 'code'),
-    AppCategory(key: '效率办公', name: '效率办公', icon: 'work_outline'),
-    AppCategory(key: '媒体娱乐', name: '媒体娱乐', icon: 'music_note'),
-    AppCategory(key: '系统工具', name: '系统工具', icon: 'settings'),
-    AppCategory(key: '设计创意', name: '设计创意', icon: 'design_services'),
+    AppCategory(key: '1', name: '开发工具', icon: 'code'),
+    AppCategory(key: '2', name: '效率办公', icon: 'work_outline'),
+    AppCategory(key: '3', name: '媒体娱乐', icon: 'music_note'),
+    AppCategory(key: '4', name: '系统工具', icon: 'settings'),
+    AppCategory(key: '6', name: '设计创意', icon: 'design_services'),
   ];
+
+  static String? _categoryId(String? name) {
+    const map = {
+      '开发工具': '1',
+      '效率办公': '2',
+      '媒体娱乐': '3',
+      '系统工具': '4',
+      '网络通信': '5',
+      '设计创意': '6',
+      '游戏娱乐': '7',
+      '教育学习': '8',
+    };
+    return map[name];
+  }
 
   static List<AppStoreApp> browseApps({
     String? category,
@@ -73,7 +87,9 @@ class MockData {
   }) {
     var result = List<AppStoreApp>.from(apps);
     if (category != null && category != 'all') {
-      result = result.where((a) => a.category == category).toList();
+      result = result.where((a) {
+        return a.category == category || _categoryId(a.category) == category;
+      }).toList();
     }
     if (search != null && search.isNotEmpty) {
       final q = search.toLowerCase();

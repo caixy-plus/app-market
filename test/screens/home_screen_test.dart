@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:app_market/providers/app_store_provider.dart';
 import 'package:app_market/providers/auth_provider.dart';
+import 'package:app_market/providers/theme_provider.dart';
 import 'package:app_market/screens/main_screen.dart';
 import 'package:app_market/screens/search_screen.dart';
 
@@ -14,6 +15,7 @@ Widget createTestApp() {
         create: (_) => AppStoreProvider(),
       ),
       ChangeNotifierProvider(create: (_) => AuthProvider()),
+      ChangeNotifierProvider(create: (_) => ThemeProvider()),
     ],
     child: MaterialApp(
       title: '应用商城',

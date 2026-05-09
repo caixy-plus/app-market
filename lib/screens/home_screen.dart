@@ -17,7 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
   Future<void> _loadData() async {
@@ -25,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await Future.wait([
       provider.loadPopularApps(),
       provider.loadLatestApps(),
+      provider.loadCategories(),
     ]);
   }
 
@@ -36,15 +37,41 @@ class _HomeScreenState extends State<HomeScreen> {
           onRefresh: _loadData,
           child: CustomScrollView(
             slivers: [
+              _buildErrorBanner(),
               _buildSearchHeader(),
               _buildBanner(),
               _buildCategories(),
               _buildPopularSection(),
               _buildLatestSection(),
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner() {
+    return SliverToBoxAdapter(
+      child: Consumer<AppStoreProvider>(
+        builder: (context, provider, child) {
+          if (provider.error == null || provider.error!.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          return Container(
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red[200]!),
+            ),
+            child: Text(
+              '请求失败: ${provider.error}',
+              style: TextStyle(color: Colors.red[700], fontSize: 13),
+            ),
+          );
+        },
       ),
     );
   }
@@ -90,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
         margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF1890FF), Color(0xFF4169E1)],
+            colors: [Color(0xFF2D5BE3), Color(0xFF4F46E5)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -123,37 +150,81 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategories() {
-    final categories = [
-      ('全部', Icons.apps, Colors.blue),
-      ('开发工具', Icons.code, Colors.orange),
-      ('生产力', Icons.work_outline, Colors.green),
-      ('设计', Icons.design_services, Colors.purple),
-      ('浏览器', Icons.web, Colors.teal),
-      ('娱乐', Icons.music_note, Colors.red),
-    ];
+  IconData _categoryIcon(String? name) {
+    switch (name) {
+      case '开发工具':
+        return Icons.code;
+      case '效率办公':
+        return Icons.work_outline;
+      case '设计创意':
+        return Icons.design_services;
+      case '媒体娱乐':
+        return Icons.movie;
+      case '系统工具':
+        return Icons.settings;
+      case '网络通信':
+        return Icons.language;
+      case '游戏娱乐':
+        return Icons.sports_esports;
+      case '教育学习':
+        return Icons.school;
+      default:
+        return Icons.apps;
+    }
+  }
 
+  Color _categoryColor(int index) {
+    final colors = [
+      const Color(0xFF2D5BE3),
+      const Color(0xFF0891B2),
+      const Color(0xFF059669),
+      const Color(0xFF7C3AED),
+      const Color(0xFFD97706),
+      const Color(0xFFE11D48),
+      const Color(0xFF6366F1),
+      const Color(0xFFEC4899),
+    ];
+    return colors[index % colors.length];
+  }
+
+  Widget _buildCategories() {
     return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: categories.map((c) {
-            return _CategoryItem(
-              label: c.$1,
-              icon: c.$2,
-              color: c.$3,
-              onTap: () {
-                final provider = context.read<AppStoreProvider>();
-                provider.setCategory(c.$1 == '全部' ? 'all' : c.$1);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AppListScreen()),
+      child: Consumer<AppStoreProvider>(
+        builder: (context, provider, child) {
+          final categories = [
+            AppCategory(key: 'all', name: '全部', icon: 'apps'),
+            ...provider.categories,
+          ];
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: GridView.builder(
+              physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 5,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 4,
+                childAspectRatio: 0.8,
+              ),
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final cat = categories[index];
+                return _CategoryItem(
+                  label: cat.name,
+                  icon: _categoryIcon(cat.name),
+                  color: _categoryColor(index),
+                  onTap: () {
+                    provider.setCategory(cat.key);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AppListScreen()),
+                    );
+                  },
                 );
               },
-            );
-          }).toList(),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -174,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }),
               SizedBox(
-                height: 160,
+                height: 140,
                 child: provider.popularApps.isEmpty
                     ? const Center(child: CircularProgressIndicator())
                     : ListView.builder(
@@ -226,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSectionHeader(String title, VoidCallback onTap) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -261,20 +332,29 @@ class _CategoryItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 64,
+        child: Column(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 24),
             ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 12)),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 12),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }

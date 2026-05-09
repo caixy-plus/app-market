@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'app_list_screen.dart';
-import 'chat_screen.dart';
 import 'profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -17,7 +16,6 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _pages = const [
     HomeScreen(),
     AppListScreen(),
-    ChatScreen(),
     ProfileScreen(),
   ];
 
@@ -41,11 +39,6 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.apps_outlined),
             selectedIcon: Icon(Icons.apps),
             label: '应用',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_outlined),
-            selectedIcon: Icon(Icons.chat),
-            label: 'AI 对话',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

@@ -165,6 +165,41 @@ class AppStoreApp {
   bool get isFree => pricingType == 'free' || (priceCents == null || priceCents == 0);
 }
 
+class MyRating {
+  final int appId;
+  final String? appName;
+  final String? appIcon;
+  final int rating;
+  final String? comment;
+  final DateTime? createdAt;
+
+  MyRating({
+    required this.appId,
+    this.appName,
+    this.appIcon,
+    required this.rating,
+    this.comment,
+    this.createdAt,
+  });
+
+  factory MyRating.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(dynamic v) {
+      if (v == null) return null;
+      if (v is String) return DateTime.tryParse(v);
+      return null;
+    }
+
+    return MyRating(
+      appId: json['appId'] is int ? json['appId'] : int.tryParse(json['appId']?.toString() ?? json['app_id']?.toString() ?? '0') ?? 0,
+      appName: json['appName']?.toString() ?? json['app_name']?.toString(),
+      appIcon: json['appIcon']?.toString() ?? json['app_icon']?.toString() ?? json['iconUrl']?.toString() ?? json['icon_url']?.toString(),
+      rating: json['rating'] is int ? json['rating'] : int.tryParse(json['rating'].toString()) ?? 0,
+      comment: json['comment']?.toString(),
+      createdAt: parseDate(json['createdAt'] ?? json['created_at']),
+    );
+  }
+}
+
 class AppCategory {
   final String key;
   final String name;

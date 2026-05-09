@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 import '../providers/app_store_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import 'download_manager_screen.dart';
+import 'feedback_screen.dart';
 import 'installed_apps_screen.dart';
 import 'login_screen.dart';
+import 'my_ratings_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -38,10 +41,10 @@ class ProfileScreen extends StatelessWidget {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.1),
+              color: Theme.of(context).colorScheme.primaryContainer,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.person, size: 40, color: Colors.blue),
+            child: Icon(Icons.person, size: 40, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(height: 16),
           Text(
@@ -91,7 +94,7 @@ class ProfileScreen extends StatelessWidget {
               label: '应用数',
               value: '${provider.apps.length}',
               icon: Icons.apps,
-              color: Colors.blue,
+              color: Color(0xFF2D5BE3),
             ),
           ),
         ],
@@ -101,11 +104,22 @@ class ProfileScreen extends StatelessWidget {
 
   Widget _buildMenu(BuildContext context) {
     final items = <_MenuItem>[
+      _MenuItem(
+        '下载管理',
+        Icons.download_outlined,
+        Color(0xFF2D5BE3),
+        () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DownloadManagerScreen()),
+          );
+        },
+      ),
       if (Platform.isAndroid)
         _MenuItem(
           '应用管理',
           Icons.apps_outlined,
-          Colors.green,
+          Color(0xFF059669),
           () {
             Navigator.push(
               context,
@@ -116,20 +130,38 @@ class ProfileScreen extends StatelessWidget {
       _MenuItem(
         '我的评分',
         Icons.star_outline,
-        Colors.orange,
+        Color(0xFFD97706),
         () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('功能开发中')),
+          final auth = context.read<AuthProvider>();
+          if (!auth.isLoggedIn) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const MyRatingsScreen()),
           );
         },
       ),
       _MenuItem(
         '意见反馈',
         Icons.feedback_outlined,
-        Colors.purple,
+        Color(0xFF7C3AED),
         () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('功能开发中')),
+          final auth = context.read<AuthProvider>();
+          if (!auth.isLoggedIn) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const FeedbackScreen()),
           );
         },
       ),
@@ -199,7 +231,7 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.color_lens_outlined, color: Colors.blue),
+                  leading: Icon(Icons.color_lens_outlined, color: Theme.of(context).colorScheme.primary),
                   title: const Text('主题设置'),
                   subtitle: Text(themeLabel),
                   trailing: const Icon(Icons.chevron_right, color: Colors.grey),
@@ -259,7 +291,7 @@ class ProfileScreen extends StatelessWidget {
                 leading: const Icon(Icons.light_mode),
                 title: const Text('亮色'),
                 trailing: themeProvider.mode == AppThemeMode.light
-                    ? const Icon(Icons.check, color: Colors.blue)
+                    ? const Icon(Icons.check, color: Color(0xFF2D5BE3))
                     : null,
                 onTap: () {
                   themeProvider.setMode(AppThemeMode.light);
@@ -270,7 +302,7 @@ class ProfileScreen extends StatelessWidget {
                 leading: const Icon(Icons.dark_mode),
                 title: const Text('暗色'),
                 trailing: themeProvider.mode == AppThemeMode.dark
-                    ? const Icon(Icons.check, color: Colors.blue)
+                    ? const Icon(Icons.check, color: Color(0xFF2D5BE3))
                     : null,
                 onTap: () {
                   themeProvider.setMode(AppThemeMode.dark);
@@ -281,7 +313,7 @@ class ProfileScreen extends StatelessWidget {
                 leading: const Icon(Icons.brightness_auto),
                 title: const Text('跟随系统'),
                 trailing: themeProvider.mode == AppThemeMode.auto
-                    ? const Icon(Icons.check, color: Colors.blue)
+                    ? const Icon(Icons.check, color: Color(0xFF2D5BE3))
                     : null,
                 onTap: () {
                   themeProvider.setMode(AppThemeMode.auto);

@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/app_store_provider.dart';
+import '../providers/download_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/app_store_app.dart';
+import 'login_screen.dart';
 
 class AppDetailScreen extends StatefulWidget {
   final String slug;
@@ -42,23 +44,62 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   }
 
   Future<void> _handleInstall(AppStoreApp app) async {
-    setState(() => _installing = true);
-    try {
-      final provider = context.read<AppStoreProvider>();
-      if (provider.installedAppIds.contains(app.id)) {
-        await provider.uninstallApp(app.id);
+    final auth = context.read<AuthProvider>();
+    if (!auth.isLoggedIn) {
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      if (result != true) return;
+    }
+
+    final storeProvider = context.read<AppStoreProvider>();
+    final downloadProvider = context.read<DownloadProvider>();
+
+    // Already installed → uninstall
+    if (storeProvider.installedAppIds.contains(app.id)) {
+      setState(() => _installing = true);
+      try {
+        await storeProvider.uninstallApp(app.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('已卸载')),
           );
         }
-      } else {
-        await provider.installApp(app.id);
+      } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('安装成功')),
+            SnackBar(content: Text('操作失败: $e')),
           );
         }
+      } finally {
+        if (mounted) setState(() => _installing = false);
+      }
+      return;
+    }
+
+    // Currently downloading → cancel
+    if (downloadProvider.isDownloading(app.id)) {
+      downloadProvider.cancelDownload(app.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已取消下载')),
+        );
+      }
+      return;
+    }
+
+    // Start download
+    try {
+      final downloadUrl = await storeProvider.installApp(app.id);
+      await downloadProvider.startDownload(
+        app,
+        downloadUrl: downloadUrl,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('开始下载...')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -66,8 +107,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
           SnackBar(content: Text('操作失败: $e')),
         );
       }
-    } finally {
-      if (mounted) setState(() => _installing = false);
     }
   }
 
@@ -138,10 +177,11 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   Future<void> _handleRate(AppStoreApp app) async {
     final auth = context.read<AuthProvider>();
     if (!auth.isLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先登录')),
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
-      return;
+      if (result != true) return;
     }
 
     String comment = '';
@@ -273,7 +313,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
         background: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF1890FF), Color(0xFF4169E1)],
+              colors: [Color(0xFF2D5BE3), Color(0xFF4F46E5)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -332,14 +372,14 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
+                  color: Color(0xFF2D5BE3).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   app.category ?? '其他',
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Colors.blue,
+                    color: Color(0xFF2D5BE3),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -399,28 +439,77 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
 
   Widget _buildActionButtons(AppStoreApp app) {
     final provider = context.watch<AppStoreProvider>();
+    final downloadProvider = context.watch<DownloadProvider>();
     final isInstalled = provider.installedAppIds.contains(app.id);
-    final supported = _isSupported(app);
+    final isInstalling = provider.installingAppIds.contains(app.id);
+    final isDownloading = downloadProvider.isDownloading(app.id);
+    final downloadTask = downloadProvider.getTask(app.id);
     final hasGithub = app.githubRepoUrl != null && app.githubRepoUrl!.isNotEmpty;
+
+    // Determine button state: installed → installing → downloading → download
+    Color bgColor;
+    Color fgColor;
+    IconData icon;
+    String label;
+    VoidCallback? onPressed;
+
+    if (isInstalled) {
+      bgColor = Colors.grey[200]!;
+      fgColor = Colors.black87;
+      icon = Icons.delete_outline;
+      label = '卸载';
+      onPressed = _installing ? null : () => _handleInstall(app);
+    } else if (isDownloading) {
+      bgColor = const Color(0xFF2D5BE3);
+      fgColor = Colors.white;
+      icon = Icons.close;
+      label = '取消下载 ${(downloadTask!.progress * 100).toInt()}%';
+      onPressed = () => _handleInstall(app);
+    } else if (isInstalling) {
+      bgColor = const Color(0xFF2D5BE3);
+      fgColor = Colors.white;
+      icon = Icons.download;
+      label = '准备中...';
+      onPressed = null;
+    } else {
+      bgColor = const Color(0xFF2D5BE3);
+      fgColor = Colors.white;
+      icon = Icons.download;
+      label = '下载';
+      onPressed = () => _handleInstall(app);
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Column(
         children: [
+          // Download progress bar
+          if (isDownloading || isInstalling) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: isInstalling ? null : downloadTask!.progress,
+                minHeight: 4,
+                backgroundColor: Colors.grey[200],
+                valueColor: const AlwaysStoppedAnimation(Color(0xFF2D5BE3)),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Row(
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: supported && !_installing ? () => _handleInstall(app) : null,
+                  onPressed: onPressed,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isInstalled ? Colors.grey[200] : Colors.blue,
-                    foregroundColor: isInstalled ? Colors.black87 : Colors.white,
+                    backgroundColor: bgColor,
+                    foregroundColor: fgColor,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  icon: _installing
+                  icon: isDownloading || isInstalling
                       ? const SizedBox(
                           width: 18,
                           height: 18,
@@ -429,15 +518,8 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                             valueColor: AlwaysStoppedAnimation(Colors.white),
                           ),
                         )
-                      : Icon(isInstalled ? Icons.delete_outline : Icons.download),
-                  label: Text(
-                    !supported
-                        ? '不支持当前平台'
-                        : isInstalled
-                            ? '卸载'
-                            : '安装',
-                    style: const TextStyle(fontSize: 15),
-                  ),
+                      : Icon(icon),
+                  label: Text(label, style: const TextStyle(fontSize: 15)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -446,7 +528,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                   onPressed: () => _handleOpen(app),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    side: const BorderSide(color: Colors.blue),
+                    side: const BorderSide(color: Color(0xFF2D5BE3)),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -554,7 +636,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: isUrl ? Colors.blue : null,
+                          color: isUrl ? Color(0xFF2D5BE3) : null,
                         ),
                       ),
                     ],

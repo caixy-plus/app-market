@@ -22,16 +22,14 @@ class ApiClient {
       headers: {'Content-Type': 'application/json'},
     ));
 
-    // 本地 K8s 自签名证书忽略
-    if (baseUrl.contains('local.caixy.xin')) {
-      _dio.httpClientAdapter = IOHttpClientAdapter(
-        createHttpClient: () {
-          final client = HttpClient();
-          client.badCertificateCallback = (cert, host, port) => true;
-          return client;
-        },
-      );
-    }
+    // 证书忽略
+    _dio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient();
+        client.badCertificateCallback = (cert, host, port) => true;
+        return client;
+      },
+    );
 
     _dio.interceptors.add(QueuedInterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -247,11 +245,13 @@ class ApiClient {
     return <AppStoreApp>[];
   }
 
-  Future<void> installApp(int appId, {int? uid, int? projectId}) async {
-    await _dio.post('/v1/store/apps/$appId/install', queryParameters: {
+  Future<String?> installApp(int appId, {int? uid, int? projectId}) async {
+    final response = await _dio.post('/v1/store/apps/$appId/install', queryParameters: {
       if (uid != null) 'uid': uid,
       if (projectId != null) 'projectId': projectId,
     });
+    final data = _parseResponse(response, (d) => d as Map<String, dynamic>);
+    return data['downloadUrl']?.toString();
   }
 
   Future<void> uninstallApp(int appId, {int? uid}) async {
@@ -298,12 +298,39 @@ class ApiClient {
     return _parseResponse(response, (d) => d as Map<String, dynamic>);
   }
 
-  Future<Map<String, dynamic>> register(String email, String password) async {
+  Future<void> sendVerificationCode(String email) async {
+    await _dio.post('/v1/user/auth/send-code', data: {'email': email});
+  }
+
+  Future<Map<String, dynamic>> register(String email, String password, {String? code}) async {
     final response = await _dio.post('/v1/user/auth/register', data: {
       'email': email,
       'password': password,
+      if (code != null) 'code': code,
     });
     return _parseResponse(response, (d) => d as Map<String, dynamic>);
+  }
+
+  Future<List<MyRating>> getMyRatings() async {
+    final response = await _dio.get('/v1/store/my-ratings');
+    final data = _parseResponse(response, (d) => d);
+    if (data is List) {
+      return data.map((e) => MyRating.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    if (data is Map && data['records'] is List) {
+      return (data['records'] as List)
+          .map((e) => MyRating.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return <MyRating>[];
+  }
+
+  Future<void> submitFeedback(String type, String content, String? contact) async {
+    await _dio.post('/v1/store/feedback', data: {
+      'type': type,
+      'content': content,
+      if (contact != null) 'contact': contact,
+    });
   }
 
   Future<Map<String, dynamic>> getMe() async {
@@ -320,6 +347,22 @@ class ApiClient {
       'refreshToken': refreshToken,
     });
     return _parseResponse(response, (d) => d as Map<String, dynamic>);
+  }
+
+  // ========== 分类 API ==========
+
+  Future<List<Map<String, dynamic>>> getCategories() async {
+    if (forceMock) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      return MockData.categories.map((c) => {
+        'id': c.key,
+        'name': c.name,
+      }).toList();
+    }
+    final response = await _dio.get('/v1/store/categories');
+    return _parseResponse(response, (d) {
+      return (d as List).map((e) => e as Map<String, dynamic>).toList();
+    });
   }
 
   // ========== 脑池 API ==========

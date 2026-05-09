@@ -14,10 +14,13 @@ class AppStoreProvider with ChangeNotifier {
   String? _error;
   int _currentPage = 1;
   bool _hasMore = true;
-  String _currentCategory = 'all';
+  String _currentCategoryId = 'all';
   String _currentSortBy = 'popular';
   String _currentSearch = '';
   final Set<int> _installedAppIds = {};
+  final Set<int> _installingAppIds = {};
+  List<AppCategory> _categories = [];
+  bool _categoriesLoading = false;
 
   List<AppStoreApp> get popularApps => _popularApps;
   List<AppStoreApp> get latestApps => _latestApps;
@@ -27,10 +30,13 @@ class AppStoreProvider with ChangeNotifier {
   bool get loading => _loading;
   String? get error => _error;
   bool get hasMore => _hasMore;
-  String get currentCategory => _currentCategory;
+  String get currentCategory => _currentCategoryId;
   String get currentSortBy => _currentSortBy;
   String get currentSearch => _currentSearch;
   Set<int> get installedAppIds => _installedAppIds;
+  Set<int> get installingAppIds => _installingAppIds;
+  List<AppCategory> get categories => _categories;
+  bool get categoriesLoading => _categoriesLoading;
 
   Future<void> loadPopularApps() async {
     try {
@@ -38,6 +44,7 @@ class AppStoreProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _error = e.toString();
+      debugPrint('loadPopularApps error: $e');
       notifyListeners();
     }
   }
@@ -48,6 +55,7 @@ class AppStoreProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _error = e.toString();
+      debugPrint('loadLatestApps error: $e');
       notifyListeners();
     }
   }
@@ -67,12 +75,13 @@ class AppStoreProvider with ChangeNotifier {
 
     try {
       final result = await _api.browseApps(
-        category: _currentCategory == 'all' ? null : _currentCategory,
+        category: _currentCategoryId == 'all' ? null : _currentCategoryId,
         search: _currentSearch.isEmpty ? null : _currentSearch,
         sortBy: _currentSortBy,
         page: _currentPage,
         size: 20,
       );
+      debugPrint('loadApps success: ${result.length} items');
 
       if (refresh) {
         _apps = result;
@@ -83,14 +92,35 @@ class AppStoreProvider with ChangeNotifier {
       _currentPage++;
     } catch (e) {
       _error = e.toString();
+      debugPrint('loadApps error: $e');
     } finally {
       _loading = false;
       notifyListeners();
     }
   }
 
-  Future<void> setCategory(String category) async {
-    _currentCategory = category;
+  Future<void> loadCategories() async {
+    _categoriesLoading = true;
+    notifyListeners();
+    try {
+      final data = await _api.getCategories();
+      _categories = data.map((e) => AppCategory(
+        key: e['id']?.toString() ?? '',
+        name: e['name']?.toString() ?? '',
+        icon: e['icon']?.toString(),
+      )).toList();
+      debugPrint('loadCategories success: ${_categories.length} items');
+    } catch (e) {
+      _error = e.toString();
+      debugPrint('loadCategories error: $e');
+    } finally {
+      _categoriesLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setCategory(String categoryId) async {
+    _currentCategoryId = categoryId;
     await loadApps(refresh: true);
   }
 
@@ -111,6 +141,7 @@ class AppStoreProvider with ChangeNotifier {
 
     try {
       _selectedApp = await _api.getAppDetail(slug);
+      notifyListeners(); // show detail ASAP, load ratings after
       if (_selectedApp != null) {
         _selectedAppRatings = await _api.getAppRatings(_selectedApp!.id);
       }
@@ -127,13 +158,17 @@ class AppStoreProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> installApp(int appId) async {
+  Future<String?> installApp(int appId) async {
+    _installingAppIds.add(appId);
+    notifyListeners();
     try {
-      await _api.installApp(appId);
-      _installedAppIds.add(appId);
-      notifyListeners();
+      final downloadUrl = await _api.installApp(appId);
+      return downloadUrl;
     } catch (e) {
       rethrow;
+    } finally {
+      _installingAppIds.remove(appId);
+      notifyListeners();
     }
   }
 

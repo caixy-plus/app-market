@@ -98,17 +98,12 @@ class _AppListScreenState extends State<AppListScreen> {
   }
 
   Widget _buildCategoryFilter() {
-    final categories = [
-      '全部',
-      '开发工具',
-      '生产力',
-      '设计',
-      '浏览器',
-      '娱乐',
-    ];
-
     return Consumer<AppStoreProvider>(
       builder: (context, provider, child) {
+        final categories = [
+          AppCategory(key: 'all', name: '全部'),
+          ...provider.categories,
+        ];
         return Container(
           height: 44,
           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -118,13 +113,13 @@ class _AppListScreenState extends State<AppListScreen> {
             itemCount: categories.length,
             itemBuilder: (context, index) {
               final cat = categories[index];
-              final isSelected = provider.currentCategory == (cat == '全部' ? 'all' : cat);
+              final isSelected = provider.currentCategory == cat.key;
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: ChoiceChip(
-                  label: Text(cat),
+                  label: Text(cat.name),
                   selected: isSelected,
-                  onSelected: (_) => provider.setCategory(cat == '全部' ? 'all' : cat),
+                  onSelected: (_) => provider.setCategory(cat.key),
                 ),
               );
             },
@@ -242,7 +237,7 @@ class _AppCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        _buildTag(app.category ?? '其他', Colors.blue),
+                        _buildTag(app.category ?? '其他', Color(0xFF2D5BE3)),
                         const SizedBox(width: 6),
                         _buildTag(app.displayPrice, app.isFree ? Colors.green : Colors.orange),
                         const Spacer(),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/app_store_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/download_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/main_screen.dart';
 
@@ -19,16 +20,17 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AppStoreProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => DownloadProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
-            title: '应用商城',
+            title: 'AppHub',
             debugShowCheckedModeBanner: false,
             themeMode: themeProvider.flutterThemeMode,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF1890FF),
+                seedColor: const Color(0xFF2D5BE3),
                 brightness: Brightness.light,
               ),
               useMaterial3: true,
@@ -41,7 +43,7 @@ class MyApp extends StatelessWidget {
             ),
             darkTheme: ThemeData(
               colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF1890FF),
+                seedColor: const Color(0xFF2D5BE3),
                 brightness: Brightness.dark,
               ),
               useMaterial3: true,
